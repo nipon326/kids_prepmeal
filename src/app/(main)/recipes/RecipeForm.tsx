@@ -45,6 +45,7 @@ type Props = {
     ingredients: { name: string; amount: number }[];
   };
   defaults: { role?: MealRole; protein?: ProteinGroup };
+  fromAi?: boolean;
 };
 
 const ROLES = Object.keys(ROLE_LABELS) as MealRole[];
@@ -63,7 +64,7 @@ const emptyRow = (name = "", amount = ""): Row => ({
   allergens: [],
 });
 
-export function RecipeForm({ ingredients, kids, initial, defaults }: Props) {
+export function RecipeForm({ ingredients, kids, initial, defaults, fromAi }: Props) {
   const byName = useMemo(() => new Map(ingredients.map((i) => [i.name, i])), [ingredients]);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [role, setRole] = useState<MealRole>(initial?.role ?? defaults.role ?? "main");
@@ -94,6 +95,7 @@ export function RecipeForm({ ingredients, kids, initial, defaults }: Props) {
     setError(undefined);
     const payload: RecipePayload = {
       id: initial?.id,
+      fromAi,
       title,
       role,
       minAgeMonths: Number(minAge),

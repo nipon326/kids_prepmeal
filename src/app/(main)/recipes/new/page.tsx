@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { MealRole, ProteinGroup } from "@/lib/domain/types";
 import { loadLibrary, requireSession } from "@/lib/data";
 import { PROTEIN_LABELS, ROLE_LABELS } from "@/lib/labels";
-import { RecipeForm } from "../RecipeForm";
+import { NewRecipeFlow } from "../NewRecipeFlow";
 
 export default async function NewRecipePage({ searchParams }: PageProps<"/recipes/new">) {
   const q = await searchParams;
@@ -32,7 +32,7 @@ export default async function NewRecipePage({ searchParams }: PageProps<"/recipe
       <Link href="/recipes" className="text-sm text-muted">‹ คลังเมนู</Link>
       <h1 className="h1">{source ? "คัดลอกเป็นเมนูใหม่" : "เพิ่มเมนูเอง"}</h1>
       {source && <p className="text-sm text-muted">คัดลอกจาก “{source.title}” แก้ชื่อและวัตถุดิบที่ต่างออกไปได้เลย</p>}
-      <RecipeForm
+      <NewRecipeFlow
         ingredients={lib.ingredients}
         kids={lib.children.map((c) => ({ name: c.name, allergens: c.allergens }))}
         defaults={{ role, protein }}

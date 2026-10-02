@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { AiUnavailableError, generateRecipeDraft } from "@/lib/ai/generate-recipe";
 import { allergensInName } from "@/lib/domain/allergens";
+import { allowedIngredients, validateGenerated } from "@/lib/domain/generate";
 import { alternatives, generatePlan, replaceInPlan, ROTATION } from "@/lib/domain/planner";
 import type {
   Allergen,
@@ -171,6 +173,7 @@ export async function deleteChildAction(formData: FormData) {
 
 export type RecipePayload = {
   id?: string;
+  fromAi?: boolean;
   title: string;
   role: MealRole;
   minAgeMonths: number;
@@ -254,12 +257,73 @@ export async function saveRecipeAction(json: string): Promise<{ error: string } 
     ? await s.supabase.from("recipes").update(row).eq("id", p.id).eq("household_id", s.householdId).select("id").single()
     : await s.supabase
         .from("recipes")
-        .insert({ ...row, household_id: s.householdId, source: "user" })
+        .insert({ ...row, household_id: s.householdId, source: p.fromAi === true ? "ai" : "user" })
         .select("id")
         .single();
   if (res.error || !res.data) return { error: res.error?.message ?? "บันทึกเมนูไม่สำเร็จ" };
   revalidatePath("/", "layout");
   redirect(`/recipes/${res.data.id}`);
+}
+
+export type RecipeDraft = {
+  title: string;
+  role: MealRole;
+  minAgeMonths: number;
+  proteinGroup?: ProteinGroup;
+  cookMethod: CookMethod;
+  instructions: string[];
+  ingredients: { name: string; amount: number }[];
+};
+
+const MAX_HINT = 200;
+const MAX_ATTEMPTS = 2;
+
+// The model only sees ingredients that are safe for every child, and its answer is re-validated
+// against each child's allergens here. Nothing about the children is sent to the API.
+export async function generateRecipeAction(
+  roleInput: string,
+  proteinInput: string,
+  hintInput: string,
+): Promise<{ error: string } | { draft: RecipeDraft }> {
+  const role = oneOf(ROLES, roleInput);
+  const proteinGroup = proteinInput ? oneOf(PROTEINS, proteinInput) : undefined;
+  if (!role) return { error: "กรุณาเลือกประเภทเมนู" };
+  if (role === "main" && !proteinGroup) return { error: "กับข้าวต้องระบุโปรตีนหลัก" };
+  const hint = hintInput.trim().slice(0, MAX_HINT);
+
+  const lib = await loadLibrary(await requireSession());
+  const allowed = allowedIngredients(role, proteinGroup, lib.children, lib.ingredients);
+  if (allowed.length < 3) return { error: "วัตถุดิบที่ปลอดภัยสำหรับลูกทุกคนมีน้อยเกินไปที่จะคิดสูตร" };
+  const existingTitles = lib.recipes.filter((r) => r.role === role).map((r) => r.title);
+
+  let previousProblem: string | undefined;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    let gen;
+    try {
+      gen = await generateRecipeDraft({ role, proteinGroup, hint, allowed, existingTitles, previousProblem });
+    } catch (e) {
+      if (e instanceof AiUnavailableError) return { error: e.message };
+      return { error: e instanceof Error && !("status" in e) ? e.message : "เรียก AI ไม่สำเร็จ ลองใหม่อีกครั้ง" };
+    }
+    const check = validateGenerated(role, proteinGroup, gen, allowed, lib.children);
+    if (check.ok) {
+      const nameById = new Map(allowed.map((i) => [i.id, i.name]));
+      const r = check.recipe;
+      return {
+        draft: {
+          title: r.title,
+          role: r.role,
+          minAgeMonths: r.minAgeMonths,
+          proteinGroup: r.proteinGroup,
+          cookMethod: r.cookMethod,
+          instructions: r.instructions.map(stripStepNumber),
+          ingredients: r.ingredients.map((i) => ({ name: nameById.get(i.ingredientId) ?? "", amount: i.amountPerPortion })),
+        },
+      };
+    }
+    previousProblem = check.reason;
+  }
+  return { error: `AI คิดสูตรที่ผ่านการตรวจไม่ได้ (${previousProblem}) ลองใหม่หรือเปลี่ยนคำอธิบาย` };
 }
 
 export async function deleteRecipeAction(formData: FormData) {
