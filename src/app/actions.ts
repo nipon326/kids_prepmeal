@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { adaptRecipeDraft, type AdaptImage } from "@/lib/ai/adapt-recipe";
+import { describeAiError } from "@/lib/ai/errors";
 import { AiUnavailableError, generateRecipeDraft } from "@/lib/ai/generate-recipe";
 import { allergensInName } from "@/lib/domain/allergens";
-import { allowedIngredients, validateGenerated } from "@/lib/domain/generate";
+import { allowedIngredients, validateAdapted, validateGenerated, type AdaptedDraft } from "@/lib/domain/generate";
 import { alternatives, generatePlan, replaceInPlan, ROTATION } from "@/lib/domain/planner";
 import type {
   Allergen,
@@ -272,7 +274,14 @@ export type RecipeDraft = {
   proteinGroup?: ProteinGroup;
   cookMethod: CookMethod;
   instructions: string[];
-  ingredients: { name: string; amount: number }[];
+  ingredients: {
+    name: string;
+    amount: number;
+    category?: ShoppingCategory;
+    foodGroup?: FoodGroup;
+    unit?: Ingredient["unit"];
+    allergens?: Allergen[];
+  }[];
 };
 
 const MAX_HINT = 200;
@@ -303,7 +312,7 @@ export async function generateRecipeAction(
       gen = await generateRecipeDraft({ role, proteinGroup, hint, allowed, existingTitles, previousProblem });
     } catch (e) {
       if (e instanceof AiUnavailableError) return { error: e.message };
-      return { error: e instanceof Error && !("status" in e) ? e.message : "เรียก AI ไม่สำเร็จ ลองใหม่อีกครั้ง" };
+      return { error: describeAiError(e) };
     }
     const check = validateGenerated(role, proteinGroup, gen, allowed, lib.children);
     if (check.ok) {
@@ -324,6 +333,119 @@ export async function generateRecipeAction(
     previousProblem = check.reason;
   }
   return { error: `AI คิดสูตรที่ผ่านการตรวจไม่ได้ (${previousProblem}) ลองใหม่หรือเปลี่ยนคำอธิบาย` };
+}
+
+const MAX_SOURCE_TEXT = 6000;
+const MAX_IMAGE_BASE64 = 3_000_000;
+const IMAGE_TYPES: AdaptImage["mediaType"][] = ["image/jpeg", "image/png", "image/webp"];
+
+// Adapts a recipe the user found elsewhere (pasted text or a photo). Ingredients outside the catalog
+// come back as suggestions; the user decides which ones to add. Nothing about the children is sent.
+export async function adaptRecipeAction(
+  roleInput: string,
+  text: string,
+  imageType: string,
+  imageBase64: string,
+): Promise<{ error: string } | { draft: AdaptedDraft }> {
+  const role = roleInput === "main" || roleInput === "breakfast" ? roleInput : undefined;
+  if (!role) return { error: "กรุณาเลือกประเภทเมนู" };
+  const source = text.trim().slice(0, MAX_SOURCE_TEXT);
+  const mediaType = IMAGE_TYPES.find((t) => t === imageType);
+  if (imageBase64 && (!mediaType || imageBase64.length > MAX_IMAGE_BASE64)) return { error: "รูปต้องเป็น JPEG, PNG หรือ WebP และไม่ใหญ่เกินไป" };
+  if (!source && !imageBase64) return { error: "วางข้อความสูตรหรือเลือกรูปก่อน" };
+  const image = imageBase64 && mediaType ? { mediaType, base64: imageBase64 } : undefined;
+
+  const lib = await loadLibrary(await requireSession());
+  // "breakfast" applies no one-protein-per-week rule: an outside recipe may use any protein.
+  const allowed = allowedIngredients("breakfast", undefined, lib.children, lib.ingredients);
+
+  let previousProblem: string | undefined;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    let gen;
+    try {
+      gen = await adaptRecipeDraft({ role, text: source, image, allowed, previousProblem });
+    } catch (e) {
+      return { error: describeAiError(e) };
+    }
+    const check = validateAdapted(role, gen, allowed, lib.ingredients, lib.children);
+    if (check.ok) return { draft: check.draft };
+    previousProblem = check.reason;
+  }
+  return { error: `AI ปรับสูตรที่ผ่านการตรวจไม่ได้ (${previousProblem}) ลองใหม่หรือใช้ข้อความอื่น` };
+}
+
+const COLORS = ["green", "orange", "red", "purple", "white", "yellow"] as const;
+
+function ingredientsBack(message: string): never {
+  redirect(`/ingredients?error=${encodeURIComponent(message)}`);
+}
+
+export async function saveIngredientAction(formData: FormData) {
+  const id = formData.get("id");
+  const name = text(formData.get("name"), 80);
+  const category = oneOf(CATEGORIES, formData.get("category"));
+  const foodGroup = oneOf(FOOD_GROUPS, formData.get("food_group"));
+  const unit = oneOf(UNITS, formData.get("unit"));
+  if (!category || !foodGroup || !unit) throw new Error("ข้อมูลไม่ครบ");
+
+  const packSize = Number(formData.get("pack_size") || 0);
+  const packLabel = String(formData.get("pack_label") ?? "").trim().slice(0, 30);
+  if (!(packSize >= 0 && packSize < 100_000)) throw new Error("ขนาดแพ็คไม่ถูกต้อง");
+  const hasPack = packSize > 0 && packLabel !== "";
+
+  const minAge = String(formData.get("min_age_months") ?? "").trim();
+  if (minAge !== "" && !(Number(minAge) >= 0 && Number(minAge) <= 72)) throw new Error("อายุขั้นต่ำไม่ถูกต้อง");
+
+  const proteinRaw = formData.get("protein_group");
+  const proteinGroup = proteinRaw ? oneOf(PROTEINS, proteinRaw) : undefined;
+  const colorRaw = formData.get("color");
+  const color = colorRaw ? oneOf(COLORS, colorRaw) : undefined;
+  // Keywords in the name are always checked by the planner too, so keep the stored tags in step with them.
+  const allergens = new Set<Allergen>([
+    ...formData.getAll("allergens").map((a) => oneOf(ALLERGENS, a)).filter((a): a is Allergen => !!a),
+    ...allergensInName(name),
+  ]);
+
+  const s = await requireSession();
+  const { data: same } = await s.supabase.from("ingredients").select("id").eq("name", name).limit(2);
+  if (same?.some((r) => r.id !== id)) ingredientsBack(`มีวัตถุดิบชื่อ “${name}” อยู่แล้ว`);
+
+  const row = {
+    name,
+    category,
+    food_group: foodGroup,
+    unit,
+    pack_size: hasPack ? packSize : null,
+    pack_label: hasPack ? packLabel : null,
+    allergens: [...allergens],
+    protein_group: proteinGroup ?? null,
+    iron_rich: formData.get("iron_rich") === "on",
+    calcium_rich: formData.get("calcium_rich") === "on",
+    color: color ?? null,
+    min_age_months: minAge === "" ? null : Number(minAge),
+  };
+  const res =
+    typeof id === "string" && id
+      ? await s.supabase.from("ingredients").update(row).eq("id", id).eq("household_id", s.householdId)
+      : await s.supabase.from("ingredients").insert({ ...row, household_id: s.householdId });
+  if (res.error) throw new Error(res.error.message);
+  revalidatePath("/", "layout");
+  redirect("/ingredients");
+}
+
+export async function deleteIngredientAction(formData: FormData) {
+  const id = text(formData.get("id"));
+  const s = await requireSession();
+  const lib = await loadLibrary(s);
+  const usedBy = lib.recipes.filter((r) => r.ingredients.some((i) => i.ingredientId === id)).map((r) => r.title);
+  if (usedBy.length > 0) {
+    const shown = usedBy.slice(0, 3).join(", ") + (usedBy.length > 3 ? ` และอีก ${usedBy.length - 3} เมนู` : "");
+    ingredientsBack(`ลบไม่ได้ เพราะยังใช้อยู่ใน: ${shown}`);
+  }
+  const { error } = await s.supabase.from("ingredients").delete().eq("id", id).eq("household_id", s.householdId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/", "layout");
+  redirect("/ingredients");
 }
 
 export async function deleteRecipeAction(formData: FormData) {

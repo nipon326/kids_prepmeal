@@ -40,7 +40,7 @@ type ChildRow = {
 
 type IngredientRow = {
   id: string;
-  household_id: string | null;
+  household_id: string;
   name: string;
   category: Ingredient["category"];
   food_group: Ingredient["foodGroup"];
@@ -57,7 +57,7 @@ type IngredientRow = {
 
 type RecipeRow = {
   id: string;
-  household_id: string | null;
+  household_id: string;
   title: string;
   role: Recipe["role"];
   min_age_months: number;
@@ -105,7 +105,7 @@ function toIngredient(r: IngredientRow): LibraryIngredient {
     calciumRich: r.calcium_rich,
     color: (r.color ?? undefined) as Ingredient["color"],
     minAgeMonths: r.min_age_months ?? undefined,
-    own: r.household_id !== null,
+    own: true,
   };
 }
 
@@ -120,7 +120,7 @@ function toRecipe(r: RecipeRow): LibraryRecipe {
     cookMethod: r.cook_method,
     ingredients: r.ingredients,
     instructions: r.instructions,
-    own: r.household_id !== null,
+    own: true,
     source: r.source,
   };
 }

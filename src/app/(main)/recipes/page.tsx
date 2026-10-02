@@ -22,7 +22,10 @@ export default async function RecipesPage({ searchParams }: PageProps<"/recipes"
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="h1">คลังเมนู</h1>
-        <Link href={`/recipes/new${role ? `?role=${role}` : ""}`} className="btn-primary min-h-10 px-3">+ เพิ่มเมนู</Link>
+        <div className="flex gap-2">
+          <Link href="/ingredients" className="btn min-h-10 px-3">วัตถุดิบ</Link>
+          <Link href={`/recipes/new${role ? `?role=${role}` : ""}`} className="btn-primary min-h-10 px-3">+ เพิ่มเมนู</Link>
+        </div>
       </div>
 
       <nav className="flex gap-2 overflow-x-auto">

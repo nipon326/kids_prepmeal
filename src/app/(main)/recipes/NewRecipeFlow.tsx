@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { generateRecipeAction, type RecipeDraft } from "@/app/actions";
 import type { MealRole, ProteinGroup } from "@/lib/domain/types";
 import { PROTEIN_LABELS, ROLE_LABELS } from "@/lib/labels";
+import { AdaptPanel } from "./AdaptPanel";
 import { RecipeForm } from "./RecipeForm";
 
 type FormProps = Parameters<typeof RecipeForm>[0];
@@ -16,7 +17,7 @@ export function NewRecipeFlow(props: FormProps) {
   const [role, setRole] = useState<MealRole>(props.defaults.role ?? "main");
   const [protein, setProtein] = useState<ProteinGroup | "">(props.defaults.protein ?? "");
   const [hint, setHint] = useState("");
-  const [draft, setDraft] = useState<{ n: number; value: RecipeDraft }>();
+  const [draft, setDraft] = useState<{ n: number; value: RecipeDraft; notes: string[] }>();
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
 
@@ -25,7 +26,7 @@ export function NewRecipeFlow(props: FormProps) {
     startTransition(async () => {
       const res = await generateRecipeAction(role, role === "main" ? protein : "", hint);
       if ("error" in res) setError(res.error);
-      else setDraft((d) => ({ n: (d?.n ?? 0) + 1, value: res.draft }));
+      else setDraft((d) => ({ n: (d?.n ?? 0) + 1, value: res.draft, notes: [] }));
     });
   }
 
@@ -70,6 +71,17 @@ export function NewRecipeFlow(props: FormProps) {
             {error && <p className="text-sm text-danger">{error}</p>}
           </div>
         </details>
+      )}
+      {!props.initial && <AdaptPanel onUse={(value, notes) => setDraft((d) => ({ n: (d?.n ?? 0) + 1, value, notes }))} />}
+      {draft && draft.notes.length > 0 && (
+        <div className="card text-sm">
+          <p className="font-bold">AI ปรับสูตรนี้ ตรวจก่อนบันทึก</p>
+          <ul className="mt-1 list-disc pl-5 text-muted">
+            {draft.notes.map((n, i) => (
+              <li key={i}>{n}</li>
+            ))}
+          </ul>
+        </div>
       )}
       <RecipeForm
         key={draft?.n ?? 0}

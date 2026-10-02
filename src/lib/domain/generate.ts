@@ -1,5 +1,5 @@
 import { allergenConflicts, allergensInName } from "./allergens";
-import type { Child, CookMethod, Ingredient, MealRole, ProteinGroup, Recipe } from "./types";
+import type { Allergen, Child, CookMethod, FoodGroup, Ingredient, MealRole, ProteinGroup, Recipe, ShoppingCategory } from "./types";
 
 // Pure helpers around AI recipe generation. The model never sees children's data: it only gets
 // the ingredients that are safe for every child in the household, and whatever it returns is
@@ -90,4 +90,163 @@ export function validateGenerated(
     if (allergenConflicts(recipe, child, byId).length > 0) return { ok: false, reason: "พบสารก่อภูมิแพ้" };
   }
   return { ok: true, recipe };
+}
+
+// --- Adapting an outside recipe (pasted text or a photo) for the kids -------------------------
+
+export type NewIngredientSuggestion = {
+  name: string;
+  category: ShoppingCategory;
+  foodGroup: FoodGroup;
+  unit: Ingredient["unit"];
+};
+
+export type AdaptedRecipe = {
+  title: string;
+  cookMethod: CookMethod;
+  proteinGroup: ProteinGroup | "none";
+  ingredients: {
+    ingredientId: string; // a catalog id, or "NEW" when newIngredient is set
+    newIngredient: NewIngredientSuggestion | null;
+    amountPerPortion: number;
+  }[];
+  instructions: string[];
+  changes: string[];
+};
+
+export type AdaptedRow = {
+  name: string;
+  amount: number;
+  isNew: boolean;
+  unit: Ingredient["unit"];
+  category?: ShoppingCategory;
+  foodGroup?: FoodGroup;
+  allergens: Allergen[];
+  needsLabelCheck: boolean;
+};
+
+export type AdaptedDraft = {
+  title: string;
+  role: MealRole;
+  minAgeMonths: number;
+  proteinGroup?: ProteinGroup;
+  cookMethod: CookMethod;
+  instructions: string[];
+  rows: AdaptedRow[];
+  changes: string[];
+};
+
+export type AdaptValidation = { ok: true; draft: AdaptedDraft } | { ok: false; reason: string };
+
+const MAX_CHANGES = 10;
+
+export function validateAdapted(
+  role: MealRole,
+  gen: AdaptedRecipe,
+  allowed: Ingredient[],
+  everything: Ingredient[],
+  children: Child[],
+): AdaptValidation {
+  const allowedById = new Map(allowed.map((i) => [i.id, i]));
+  const allowedByName = new Map(allowed.map((i) => [i.name, i]));
+  const blockedNames = new Set(everything.filter((i) => !allowedById.has(i.id)).map((i) => i.name));
+  const childAllergens = new Set(children.flatMap((c) => c.allergens));
+
+  const title = gen.title.trim();
+  if (!title || title.length > 120) return { ok: false, reason: "ชื่อเมนูไม่ถูกต้อง" };
+  const steps = gen.instructions.map((s) => s.trim()).filter(Boolean);
+  if (steps.length === 0 || steps.length > MAX_STEPS) return { ok: false, reason: "จำนวนขั้นตอนไม่ถูกต้อง" };
+
+  const changes = gen.changes.map((c) => c.trim()).filter(Boolean).slice(0, MAX_CHANGES);
+  const rows: AdaptedRow[] = [];
+  const seen = new Set<string>();
+  const temp = new Map<string, Ingredient>(allowedById);
+  const ids: { ingredientId: string; amountPerPortion: number }[] = [];
+
+  for (const g of gen.ingredients) {
+    let ing: Ingredient | undefined;
+    let suggestion: NewIngredientSuggestion | undefined;
+    if (g.ingredientId !== "NEW") {
+      ing = allowedById.get(g.ingredientId);
+      if (!ing) return { ok: false, reason: `วัตถุดิบ ${g.ingredientId} ไม่อยู่ในรายการที่อนุญาต` };
+    } else {
+      const n = g.newIngredient;
+      const name = n?.name.trim() ?? "";
+      if (!n || !name || name.length > 80) return { ok: false, reason: "ข้อมูลวัตถุดิบใหม่ไม่ครบ" };
+      ing = allowedByName.get(name);
+      if (!ing) {
+        const hits = allergensInName(name).filter((a) => childAllergens.has(a));
+        if (blockedNames.has(name) || hits.length > 0) {
+          changes.push(`ตัด "${name}" ออก เพราะไม่ปลอดภัยสำหรับลูก`);
+          continue;
+        }
+        suggestion = { ...n, name };
+      }
+    }
+
+    const name = ing?.name ?? suggestion!.name;
+    const unit = ing?.unit ?? suggestion!.unit;
+    if (seen.has(name)) return { ok: false, reason: "วัตถุดิบซ้ำกัน" };
+    seen.add(name);
+    if (!(g.amountPerPortion > 0 && g.amountPerPortion <= MAX_AMOUNT[unit])) {
+      return { ok: false, reason: `ปริมาณของ ${name} ไม่สมเหตุสมผล` };
+    }
+
+    if (suggestion) {
+      const id = `new:${name}`;
+      temp.set(id, { id, name, category: suggestion.category, foodGroup: suggestion.foodGroup, unit, allergens: [] });
+      ids.push({ ingredientId: id, amountPerPortion: g.amountPerPortion });
+      rows.push({
+        name,
+        amount: g.amountPerPortion,
+        isNew: true,
+        unit,
+        category: suggestion.category,
+        foodGroup: suggestion.foodGroup,
+        allergens: allergensInName(name),
+        needsLabelCheck: suggestion.category === "pantry" || suggestion.foodGroup === "seasoning",
+      });
+    } else {
+      ids.push({ ingredientId: ing!.id, amountPerPortion: g.amountPerPortion });
+      rows.push({ name, amount: g.amountPerPortion, isNew: false, unit, allergens: [], needsLabelCheck: false });
+    }
+  }
+
+  if (rows.length === 0 || rows.length > MAX_INGREDIENTS) return { ok: false, reason: "จำนวนวัตถุดิบไม่ถูกต้อง" };
+  const protein = gen.proteinGroup === "none" ? undefined : gen.proteinGroup;
+  if (role === "main") {
+    if (!protein) return { ok: false, reason: "กับข้าวต้องระบุโปรตีนหลัก" };
+    if (!ids.some((r) => allowedById.get(r.ingredientId)?.proteinGroup === protein)) {
+      return { ok: false, reason: "โปรตีนหลักต้องเป็นวัตถุดิบที่มีในรายการ" };
+    }
+  }
+
+  const recipe: Recipe = {
+    id: "ai-adapted",
+    title,
+    role,
+    minAgeMonths: minAgeFor(role),
+    proteinGroup: protein,
+    cookMethod: gen.cookMethod,
+    ingredients: ids,
+    instructions: steps,
+  };
+  // Same final gate as everything else; new ingredients are scanned by name.
+  for (const child of children) {
+    if (allergenConflicts(recipe, child, temp).length > 0) return { ok: false, reason: "พบสารก่อภูมิแพ้" };
+  }
+
+  return {
+    ok: true,
+    draft: {
+      title,
+      role,
+      minAgeMonths: recipe.minAgeMonths,
+      proteinGroup: protein,
+      cookMethod: gen.cookMethod,
+      instructions: steps,
+      rows,
+      changes,
+    },
+  };
 }

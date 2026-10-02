@@ -42,7 +42,14 @@ type Props = {
     proteinGroup?: ProteinGroup;
     cookMethod: CookMethod;
     instructions: string[];
-    ingredients: { name: string; amount: number }[];
+    ingredients: {
+      name: string;
+      amount: number;
+      category?: ShoppingCategory;
+      foodGroup?: FoodGroup;
+      unit?: Ingredient["unit"];
+      allergens?: Allergen[];
+    }[];
   };
   defaults: { role?: MealRole; protein?: ProteinGroup };
   fromAi?: boolean;
@@ -54,7 +61,7 @@ const PROTEINS = Object.keys(PROTEIN_LABELS) as ProteinGroup[];
 const ALLERGENS = Object.keys(ALLERGEN_LABELS) as Allergen[];
 
 let nextKey = 1;
-const emptyRow = (name = "", amount = ""): Row => ({
+const emptyRow = (name = "", amount = "", extra: Partial<Row> = {}): Row => ({
   key: nextKey++,
   name,
   amount,
@@ -62,6 +69,7 @@ const emptyRow = (name = "", amount = ""): Row => ({
   foodGroup: "vegetable",
   unit: "g",
   allergens: [],
+  ...extra,
 });
 
 export function RecipeForm({ ingredients, kids, initial, defaults, fromAi }: Props) {
@@ -72,7 +80,7 @@ export function RecipeForm({ ingredients, kids, initial, defaults, fromAi }: Pro
   const [protein, setProtein] = useState<ProteinGroup | "">(initial?.proteinGroup ?? defaults.protein ?? "");
   const [method, setMethod] = useState<CookMethod>(initial?.cookMethod ?? (role === "puree" ? "blend" : "boil"));
   const [rows, setRows] = useState<Row[]>(
-    initial?.ingredients.map((i) => emptyRow(i.name, String(i.amount))) ?? [emptyRow()],
+    initial?.ingredients.map(({ name, amount, ...extra }) => emptyRow(name, String(amount), extra)) ?? [emptyRow()],
   );
   const [steps, setSteps] = useState(initial?.instructions.join("\n") ?? "");
   const [error, setError] = useState<string>();

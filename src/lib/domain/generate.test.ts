@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STARTER_INGREDIENTS } from "@/data/catalog";
-import { allowedIngredients, validateGenerated, type GeneratedRecipe } from "./generate";
+import { allowedIngredients, validateAdapted, validateGenerated, type AdaptedRecipe, type GeneratedRecipe } from "./generate";
 import type { Child } from "./types";
 
 const strict: Child = {
@@ -73,5 +73,62 @@ describe("validateGenerated", () => {
     expect(two.ok).toBe(false);
     const one = validateGenerated("puree", undefined, pork(["pumpkin"]), pureeAllowed, [strict]);
     expect(one.ok).toBe(true);
+  });
+});
+
+describe("validateAdapted", () => {
+  const allowed = allowedIngredients("breakfast", undefined, [strict], STARTER_INGREDIENTS);
+  const base = (rows: AdaptedRecipe["ingredients"]): AdaptedRecipe => ({
+    title: "ผัดซีอิ๊วหมูสับ",
+    cookMethod: "stir_fry",
+    proteinGroup: "pork",
+    ingredients: rows,
+    instructions: ["ผัดให้สุก"],
+    changes: ["ตัดพริกออก"],
+  });
+  const cat = (ingredientId: string, amountPerPortion = 30) => ({ ingredientId, newIngredient: null, amountPerPortion });
+  const fresh = (name: string, category: "pantry" | "vegetable" = "vegetable") => ({
+    ingredientId: "NEW",
+    newIngredient: { name, category, foodGroup: category === "pantry" ? ("seasoning" as const) : ("vegetable" as const), unit: "g" as const },
+    amountPerPortion: 10,
+  });
+
+  it("keeps a safe new ingredient as a suggestion", () => {
+    const r = validateAdapted("main", base([cat("pork_minced"), fresh("ต้นหอม")]), allowed, STARTER_INGREDIENTS, [strict]);
+    expect(r.ok && r.draft.rows.find((x) => x.isNew)?.name).toBe("ต้นหอม");
+  });
+
+  it("flags new seasonings for a label check", () => {
+    const r = validateAdapted("main", base([cat("pork_minced"), fresh("ซอสปรุงรส", "pantry")]), allowed, STARTER_INGREDIENTS, [strict]);
+    expect(r.ok && r.draft.rows.find((x) => x.isNew)?.needsLabelCheck).toBe(true);
+  });
+
+  it("drops a new ingredient whose name carries a child's allergen and says so", () => {
+    const r = validateAdapted("main", base([cat("pork_minced"), fresh("ซอสหอยนางรม", "pantry")]), allowed, STARTER_INGREDIENTS, [strict]);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.draft.rows.map((x) => x.name)).not.toContain("ซอสหอยนางรม");
+      expect(r.draft.changes.some((c) => c.includes("ซอสหอยนางรม"))).toBe(true);
+    }
+  });
+
+  it("drops a new ingredient that matches a catalog item blocked for the kids", () => {
+    const r = validateAdapted("main", base([cat("pork_minced"), fresh("กุ้งแกะเปลือก")]), allowed, STARTER_INGREDIENTS, [strict]);
+    expect(r.ok && r.draft.rows.map((x) => x.name)).not.toContain("กุ้งแกะเปลือก");
+  });
+
+  it("reuses the catalog item when a suggestion matches an allowed name", () => {
+    const r = validateAdapted("main", base([cat("pork_minced"), fresh("แครอท")]), allowed, STARTER_INGREDIENTS, [strict]);
+    expect(r.ok && r.draft.rows.find((x) => x.name === "แครอท")?.isNew).toBe(false);
+  });
+
+  it("rejects a catalog id outside the allowed list, and a title with an allergen", () => {
+    expect(validateAdapted("main", base([cat("pork_minced"), cat("shrimp")]), allowed, STARTER_INGREDIENTS, [strict]).ok).toBe(false);
+    const titled = { ...base([cat("pork_minced")]), title: "ผัดกุ้ง" };
+    expect(validateAdapted("main", titled, allowed, STARTER_INGREDIENTS, [strict]).ok).toBe(false);
+  });
+
+  it("requires the named protein to be a catalog ingredient in a main", () => {
+    expect(validateAdapted("main", base([cat("carrot"), cat("onion")]), allowed, STARTER_INGREDIENTS, [strict]).ok).toBe(false);
   });
 });
