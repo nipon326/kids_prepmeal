@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STARTER_INGREDIENTS } from "@/data/catalog";
+import { STARTER_INGREDIENTS, STARTER_RECIPES } from "@/data/catalog";
 import { ageInMonths } from "./age";
 import { allergenConflicts } from "./allergens";
 import { checkPlan } from "./nutrition";
@@ -219,5 +219,43 @@ describe("nutrition checks", () => {
     };
     const checks = checkPlan(plan, [], RECIPES, STARTER_INGREDIENTS, [elder]);
     expect(checks.map((c) => c.code)).toContain("iron");
+  });
+});
+
+describe("starter recipes", () => {
+  const strictChild: Child = { ...elder, allergens: ["gluten", "peanut", "shellfish"] };
+
+  it("only reference catalog ingredients and have unique ids", () => {
+    const ids = STARTER_RECIPES.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const r of STARTER_RECIPES) {
+      for (const ri of r.ingredients) expect(ing.has(ri.ingredientId), `${r.id}: ${ri.ingredientId}`).toBe(true);
+    }
+  });
+
+  it("toddler mains are safe for a gluten, peanut and shellfish allergic child", () => {
+    for (const r of STARTER_RECIPES.filter((x) => x.role === "main")) {
+      expect(allergenConflicts(r, strictChild, ing), r.title).toEqual([]);
+    }
+  });
+
+  it("baby purees contain no seasoning", () => {
+    for (const r of STARTER_RECIPES.filter((x) => x.role === "puree")) {
+      for (const ri of r.ingredients) expect(ing.get(ri.ingredientId)?.foodGroup, r.title).not.toBe("seasoning");
+    }
+  });
+
+  it("fill a full pork week for a toddler and a baby with no shortfalls", () => {
+    const library = [...STARTER_RECIPES, { ...STARTER_RECIPES[0], id: "bf", title: "โจ๊กหมู", role: "breakfast" as const }];
+    const { shortfalls } = generatePlan({
+      weekStart: WEEK,
+      children: [strictChild, baby],
+      recipes: library,
+      ingredients: STARTER_INGREDIENTS,
+      ratings: [],
+      history: [],
+      proteinGroup: "pork",
+    });
+    expect(shortfalls).toEqual([]);
   });
 });

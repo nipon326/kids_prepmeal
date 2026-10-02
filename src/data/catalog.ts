@@ -1,4 +1,4 @@
-import type { Ingredient } from "@/lib/domain/types";
+import type { Ingredient, Recipe } from "@/lib/domain/types";
 
 // Pack sizes approximate typical Thai supermarket packs; households can override.
 export const STARTER_INGREDIENTS: Ingredient[] = [
@@ -55,4 +55,70 @@ export const STARTER_INGREDIENTS: Ingredient[] = [
   { id: "honey", name: "น้ำผึ้ง", category: "pantry", foodGroup: "seasoning", unit: "ml", allergens: [], minAgeMonths: 12 },
   { id: "garlic", name: "กระเทียม", category: "pantry", foodGroup: "seasoning", unit: "g", allergens: [] },
   { id: "cooking_oil", name: "น้ำมันรำข้าว", category: "pantry", foodGroup: "fat", unit: "ml", allergens: [] },
+];
+
+// Shared starter recipes (household_id = null, source = 'seed'). Amounts are per portion.
+// Toddler mains assume gluten-free soy sauce and tapioca/rice flour in place of wheat flour.
+// Baby purees are single-food and unseasoned, so the planner can track new-food introductions.
+const puree = (id: string, title: string, ingredientId: string, amount: number, cookMethod: Recipe["cookMethod"], steps: string[], proteinGroup?: Recipe["proteinGroup"]): Recipe => ({
+  id: `seed_puree_${id}`, title, role: "puree", minAgeMonths: 6, proteinGroup, cookMethod,
+  ingredients: [{ ingredientId, amountPerPortion: amount }], instructions: steps,
+});
+
+export const STARTER_RECIPES: Recipe[] = [
+  {
+    id: "seed_main_pork_soy_stirfry", title: "หมูบดผัดซีอิ๊ว", role: "main", minAgeMonths: 12, proteinGroup: "pork", cookMethod: "stir_fry",
+    ingredients: [
+      { ingredientId: "pork_minced", amountPerPortion: 40 }, { ingredientId: "onion", amountPerPortion: 15 },
+      { ingredientId: "garlic", amountPerPortion: 2 }, { ingredientId: "soy_sauce_gf", amountPerPortion: 5 },
+      { ingredientId: "sugar", amountPerPortion: 1 }, { ingredientId: "cooking_oil", amountPerPortion: 3 },
+    ],
+    instructions: ["สับกระเทียม หั่นหอมใหญ่เป็นชิ้นเล็ก", "ตั้งกระทะ ใส่น้ำมัน ผัดกระเทียมและหอมใหญ่ให้หอม", "ใส่หมูบดผัดจนสุก ปรุงด้วยซีอิ๊วขาวสูตรไม่มีกลูเตนและน้ำตาล", "ผัดจนเข้ากัน พักให้เย็นก่อนแบ่งใส่กล่อง"],
+  },
+  {
+    id: "seed_main_pork_winter_melon_soup", title: "แกงจืดฟักหมูสับ", role: "main", minAgeMonths: 12, proteinGroup: "pork", cookMethod: "boil",
+    ingredients: [
+      { ingredientId: "winter_melon", amountPerPortion: 50 }, { ingredientId: "pork_minced", amountPerPortion: 30 },
+      { ingredientId: "garlic", amountPerPortion: 1 }, { ingredientId: "salt", amountPerPortion: 0.5 },
+    ],
+    instructions: ["ต้มน้ำให้เดือด ปั้นหมูสับเป็นก้อนเล็กลงต้มจนสุก", "ใส่ฟักหั่นชิ้นพอดีคำ ต้มจนนุ่ม", "ปรุงเกลือเล็กน้อย ใส่กระเทียม", "พักให้เย็น แยกเนื้อกับน้ำแกงใส่กล่อง"],
+  },
+  {
+    id: "seed_main_pork_pumpkin_steamed", title: "หมูสับนึ่งฟักทอง", role: "main", minAgeMonths: 12, proteinGroup: "pork", cookMethod: "steam",
+    ingredients: [
+      { ingredientId: "pumpkin", amountPerPortion: 40 }, { ingredientId: "pork_minced", amountPerPortion: 30 },
+      { ingredientId: "garlic", amountPerPortion: 1 }, { ingredientId: "soy_sauce_gf", amountPerPortion: 3 },
+    ],
+    instructions: ["หั่นฟักทองเป็นชิ้นบาง เรียงในจาน", "คลุกหมูสับกับกระเทียมสับและซีอิ๊วขาวสูตรไม่มีกลูเตน วางบนฟักทอง", "นึ่งไฟแรงประมาณ 15 นาทีจนสุก", "พักให้เย็นก่อนแบ่งใส่กล่อง"],
+  },
+  {
+    id: "seed_main_pork_veg_balls_baked", title: "ลูกชิ้นหมูผักอบ", role: "main", minAgeMonths: 12, proteinGroup: "pork", cookMethod: "bake",
+    ingredients: [
+      { ingredientId: "pork_minced", amountPerPortion: 40 }, { ingredientId: "carrot", amountPerPortion: 15 },
+      { ingredientId: "tapioca_flour", amountPerPortion: 5 }, { ingredientId: "garlic", amountPerPortion: 1 },
+      { ingredientId: "soy_sauce_gf", amountPerPortion: 2 }, { ingredientId: "cooking_oil", amountPerPortion: 2 },
+    ],
+    instructions: ["ขูดแครอทฝอย สับกระเทียม", "นวดหมูสับ แครอท กระเทียม ซีอิ๊วขาวสูตรไม่มีกลูเตน และแป้งมันสำปะหลังให้เหนียว (ใช้แป้งมันแทนแป้งสาลี)", "ปั้นเป็นก้อนเล็ก ทาน้ำมันบางๆ", "อบ 180°C ประมาณ 20 นาทีจนสุก พักให้เย็นก่อนแช่แข็ง"],
+  },
+  {
+    id: "seed_main_pork_kale_stirfry", title: "ผัดคะน้าหมูสับ", role: "main", minAgeMonths: 12, proteinGroup: "pork", cookMethod: "stir_fry",
+    ingredients: [
+      { ingredientId: "chinese_kale", amountPerPortion: 40 }, { ingredientId: "pork_minced", amountPerPortion: 30 },
+      { ingredientId: "garlic", amountPerPortion: 2 }, { ingredientId: "soy_sauce_gf", amountPerPortion: 4 },
+      { ingredientId: "cooking_oil", amountPerPortion: 3 },
+    ],
+    instructions: ["หั่นคะน้าเป็นชิ้นสั้นพอดีคำ สับกระเทียม", "ผัดกระเทียมกับหมูสับจนสุก", "ใส่คะน้า ปรุงด้วยซีอิ๊วขาวสูตรไม่มีกลูเตน ผัดจนนุ่ม", "พักให้เย็นก่อนแบ่งใส่กล่อง"],
+  },
+
+  puree("pork", "หมูบดละเอียด", "pork_minced", 20, "boil", ["ต้มหมูบดกับน้ำจนสุกนุ่ม", "ปั่นกับน้ำต้มจนละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน"], "pork"),
+  puree("rice", "ข้าวบด", "jasmine_rice", 30, "boil", ["ต้มข้าวกับน้ำมากๆ จนเละ", "ปั่นให้ละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน"]),
+  puree("sweet_potato", "มันเทศบด", "sweet_potato", 30, "steam", ["ปอกเปลือก หั่นชิ้น นึ่งจนนุ่ม", "บดหรือปั่นให้ละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน"]),
+  puree("riceberry", "ข้าวไรซ์เบอร์รี่บด", "riceberry", 30, "boil", ["ต้มข้าวไรซ์เบอร์รี่กับน้ำมากๆ จนเละ", "ปั่นให้ละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน"]),
+  puree("pumpkin", "ฟักทองบด", "pumpkin", 30, "steam", ["ปอกเปลือก หั่นชิ้น นึ่งจนนุ่ม", "ปั่นหรือบดให้ละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน"]),
+  puree("carrot", "แครอทบด", "carrot", 30, "steam", ["ปอกเปลือก หั่นชิ้น นึ่งจนนุ่ม", "ปั่นให้ละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน"]),
+  puree("broccoli", "บรอกโคลีบด", "broccoli", 30, "steam", ["แยกเป็นดอกเล็ก นึ่งจนนุ่ม", "ปั่นให้ละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน"]),
+  puree("winter_melon", "ฟักบด", "winter_melon", 30, "steam", ["ปอกเปลือก หั่นชิ้น นึ่งจนนุ่ม", "ปั่นให้ละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน"]),
+  puree("banana", "กล้วยบด", "banana", 0.5, "blend", ["ปอกกล้วยสุก บดให้ละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน (สีอาจคล้ำลงได้)"]),
+  puree("papaya", "มะละกอบด", "papaya", 30, "blend", ["ปอกมะละกอสุก ปั่นหรือบดให้ละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน"]),
+  puree("apple", "แอปเปิลต้มบด", "apple", 0.25, "boil", ["ปอกเปลือก หั่นชิ้น ต้มหรือนึ่งจนนุ่ม", "ปั่นให้ละเอียด", "เทใส่ถาดน้ำแข็ง แช่แข็งเป็นก้อน"]),
 ];
