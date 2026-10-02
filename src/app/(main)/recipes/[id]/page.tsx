@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { deleteRecipeAction, rateAction } from "@/app/actions";
 import { ALLERGEN_LABELS, allergenConflicts } from "@/lib/domain/allergens";
 import { loadLibrary, requireSession } from "@/lib/data";
+import { stripStepNumber } from "@/lib/format";
 import { COOK_LABELS, PROTEIN_LABELS, RATING_OPTIONS, ROLE_LABELS, UNIT_LABELS } from "@/lib/labels";
 
 export default async function RecipePage({ params }: PageProps<"/recipes/[id]">) {
@@ -56,7 +57,7 @@ export default async function RecipePage({ params }: PageProps<"/recipes/[id]">)
           <h2 className="mb-2 font-bold">วิธีทำ</h2>
           <ol className="list-decimal pl-5">
             {recipe.instructions.map((s, i) => (
-              <li key={i} className="py-1">{s}</li>
+              <li key={i} className="py-1">{stripStepNumber(s)}</li>
             ))}
           </ol>
         </section>

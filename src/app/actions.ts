@@ -15,6 +15,7 @@ import type {
   ShoppingCategory,
 } from "@/lib/domain/types";
 import { loadLibrary, loadPlans, requireSession, type Session } from "@/lib/data";
+import { stripStepNumber } from "@/lib/format";
 import { isWeekStart } from "@/lib/week";
 
 const ALLERGENS: Allergen[] = ["gluten", "milk", "egg", "soy", "peanut", "tree_nut", "fish", "shellfish", "sesame"];
@@ -208,7 +209,7 @@ export async function saveRecipeAction(json: string): Promise<{ error: string } 
   if (!Array.isArray(p.ingredients) || p.ingredients.length === 0) return { error: "ใส่วัตถุดิบอย่างน้อย 1 อย่าง" };
   if (p.ingredients.length > 30) return { error: "วัตถุดิบมากเกินไป" };
   const instructions = (Array.isArray(p.instructions) ? p.instructions : [])
-    .map((x) => String(x).trim())
+    .map((x) => stripStepNumber(String(x)).trim())
     .filter(Boolean)
     .slice(0, 30);
 

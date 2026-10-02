@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { buildShoppingList, formatAmount } from "@/lib/domain/shopping";
 import { loadLibrary, loadPlans, requireSession } from "@/lib/data";
+import { stripStepNumber } from "@/lib/format";
 import { bangkokToday, defaultWeekStart, formatWeek, isWeekStart } from "@/lib/week";
 
 export default async function PrepPage({ searchParams }: PageProps<"/prep">) {
@@ -82,7 +83,7 @@ export default async function PrepPage({ searchParams }: PageProps<"/prep">) {
                 {r.instructions.length > 0 && (
                   <ol className="mt-2 list-decimal pl-5 text-sm text-muted">
                     {r.instructions.map((step, i) => (
-                      <li key={i}>{step}</li>
+                      <li key={i}>{stripStepNumber(step)}</li>
                     ))}
                   </ol>
                 )}
