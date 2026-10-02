@@ -1,26 +1,80 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --bg: #faf7f2;
+  --surface: #ffffff;
+  --surface-2: #f3eee6;
+  --fg: #1f2328;
+  --muted: #6b6f76;
+  --line: #e7e0d5;
+  --accent: #2f7d4f;
+  --accent-fg: #ffffff;
+  --accent-soft: #e3f1e8;
+  --warn: #9a5b00;
+  --warn-soft: #fdf1dc;
+  --danger: #b42318;
+  --danger-soft: #fdecea;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #15171a;
+    --surface: #1e2125;
+    --surface-2: #272b30;
+    --fg: #ecedee;
+    --muted: #9ba1a8;
+    --line: #33383e;
+    --accent: #5bbf84;
+    --accent-fg: #0d1f14;
+    --accent-soft: #1d3326;
+    --warn: #f0b95a;
+    --warn-soft: #3a2d15;
+    --danger: #f08b82;
+    --danger-soft: #3d1f1c;
   }
 }
 
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: var(--font-thai), system-ui, sans-serif;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-tap-highlight-color: transparent;
+}
+
+@utility card {
+  @apply rounded-2xl border border-line bg-surface p-4;
+}
+@utility btn {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 font-medium active:scale-[0.98] disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn border-transparent bg-accent text-accent-fg;
+}
+@utility chip {
+  @apply inline-flex items-center gap-1 rounded-full bg-surface-2 px-3 py-1 text-sm;
+}
+@utility input {
+  @apply min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-base;
+}
+@utility label {
+  @apply mb-1 block text-sm font-medium text-muted;
+}
+@utility h1 {
+  @apply text-2xl font-bold;
 }
