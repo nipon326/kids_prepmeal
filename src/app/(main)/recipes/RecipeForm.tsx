@@ -305,9 +305,12 @@ export function RecipeForm({ ingredients, kids, initial, defaults, fromAi }: Pro
       )}
       {error && <p className="rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</p>}
 
-      <button className="btn-primary" disabled={pending}>
-        {pending ? "กำลังบันทึก…" : "บันทึกเมนู"}
-      </button>
+      {/* Sticks just above the bottom nav so a long ingredient list never pushes it out of reach. */}
+      <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 -mx-4 bg-bg/90 px-4 py-2 backdrop-blur">
+        <button className="btn-primary w-full" disabled={pending}>
+          {pending ? "กำลังบันทึก…" : "บันทึกเมนู"}
+        </button>
+      </div>
     </form>
   );
 }

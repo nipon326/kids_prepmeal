@@ -182,6 +182,16 @@ function mainCandidates(c: Ctx, child: Child, protein: ProteinGroup): Recipe[] {
   );
 }
 
+// The week's protein is a guideline: when it cannot fill every main, other proteins fill in, preferring
+// ones not eaten recently.
+function otherMainCandidates(c: Ctx, child: Child, protein: ProteinGroup): Recipe[] {
+  return c.recipes.filter(
+    (r) => r.role === "main" && r.proteinGroup !== protein && usable(c, r, child),
+  );
+}
+
+const FRESHNESS_CAP_WEEKS = 4;
+
 export function chooseProtein(input: PlannerInput): ProteinGroup {
   if (input.proteinGroup) return input.proteinGroup;
   const c = toCtx(input);
@@ -189,7 +199,9 @@ export function chooseProtein(input: PlannerInput): ProteinGroup {
   const options = allowed.length > 0 ? allowed : ROTATION;
   const supply = (p: ProteinGroup) =>
     toddlerChildren(c).reduce((n, ch) => n + mainCandidates(c, ch, p).length, 0);
-  return [...options].sort((a, b) => {
+  // A protein with no mains at all cannot anchor a week; skip it unless nothing else is left.
+  const stocked = options.filter((p) => supply(p) > 0);
+  return [...(stocked.length > 0 ? stocked : options)].sort((a, b) => {
     const wa = Math.min(weeksSinceProtein(c, a), 99);
     const wb = Math.min(weeksSinceProtein(c, b), 99);
     if (wa !== wb) return wb - wa;
@@ -208,6 +220,18 @@ function planToddler(c: Ctx, child: Child, protein: ProteinGroup, items: PlanIte
   const mains = pickDiverse(c, mainCandidates(c, child, protein), TODDLER_MAIN_COUNT, (r) =>
     baseScore(c, r, child),
   );
+  if (mains.length < TODDLER_MAIN_COUNT) {
+    const fill = pickDiverse(
+      c,
+      otherMainCandidates(c, child, protein),
+      TODDLER_MAIN_COUNT - mains.length,
+      (r) =>
+        baseScore(c, r, child) +
+        Math.min(weeksSinceProtein(c, r.proteinGroup ?? protein), FRESHNESS_CAP_WEEKS),
+      mains,
+    );
+    mains.push(...fill);
+  }
   if (mains.length < TODDLER_MAIN_COUNT) {
     shortfalls.push({ childId: child.id, role: "main", proteinGroup: protein, needed: TODDLER_MAIN_COUNT, found: mains.length });
   }
@@ -375,9 +399,15 @@ export function alternatives(
 
   let ranked: Recipe[];
   if (current.role === "main") {
-    ranked = mainCandidates(c, child, protein).sort(
-      (a, b) => baseScore(c, b, child) - baseScore(c, a, child) || a.id.localeCompare(b.id),
-    );
+    const sameProtein = (r: Recipe) => (r.proteinGroup === protein ? 1 : 0);
+    ranked = c.recipes
+      .filter((r) => r.role === "main" && usable(c, r, child))
+      .sort(
+        (a, b) =>
+          sameProtein(b) - sameProtein(a) ||
+          baseScore(c, b, child) - baseScore(c, a, child) ||
+          a.id.localeCompare(b.id),
+      );
   } else if (current.role === "breakfast") {
     ranked = rankBreakfast(c, child, protein);
   } else {

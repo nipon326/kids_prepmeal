@@ -38,7 +38,7 @@ export async function generateRecipeDraft(input: GenerateInput): Promise<Generat
   const list = input.allowed.map((i) => `${i.id} = ${i.name} (${i.unit === "piece" ? "ชิ้น" : i.unit})`).join("\n");
   const content = [
     `คิดสูตรใหม่: ${ROLE_BRIEF[input.role]}`,
-    input.proteinGroup ? `โปรตีนหลักของสัปดาห์: ${input.proteinGroup}` : "",
+    input.proteinGroup ? `โปรตีนหลักของสัปดาห์: ${input.proteinGroup} (ใช้เป็นตัวหลักของจาน เสริมโปรตีนอื่นเล็กน้อยได้ถ้าเหมาะ)` : "",
     `ปริมาณ amountPerPortion คือปริมาณต่อ 1 มื้อของเด็ก 1 คน (หน่วยตามวงเล็บของแต่ละวัตถุดิบ)`,
     `ใช้เฉพาะวัตถุดิบจากรายการนี้ (ใส่เป็น id):\n${list}`,
     `ชื่อสูตรที่มีอยู่แล้ว ห้ามซ้ำหรือใกล้เคียง: ${input.existingTitles.join(", ") || "(ไม่มี)"}`,

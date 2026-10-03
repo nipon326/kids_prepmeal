@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { swapAction } from "@/app/actions";
 import { alternatives } from "@/lib/domain/planner";
 import { loadLibrary, loadPlans, requireSession } from "@/lib/data";
-import { COOK_LABELS } from "@/lib/labels";
+import { COOK_LABELS, PROTEIN_EMOJI, PROTEIN_LABELS } from "@/lib/labels";
 import { isWeekStart } from "@/lib/week";
 
 export default async function SwapPage({ searchParams }: PageProps<"/swap">) {
@@ -21,7 +21,7 @@ export default async function SwapPage({ searchParams }: PageProps<"/swap">) {
   const child = lib.children.find((c) => c.id === childId);
   if (!current || !child) notFound();
 
-  const options = alternatives({ weekStart: week, ...lib, history }, plan, childId, recipeId, 8);
+  const options = alternatives({ weekStart: week, ...lib, history }, plan, childId, recipeId, 50);
   const newParams = new URLSearchParams({
     role: current.role,
     ...(current.role === "main" ? { protein: plan.proteinGroup } : {}),
@@ -48,7 +48,10 @@ export default async function SwapPage({ searchParams }: PageProps<"/swap">) {
                 <input type="hidden" name="new" value={r.id} />
                 <div>
                   <p className="font-medium">{r.title}</p>
-                  <p className="text-sm text-muted">{COOK_LABELS[r.cookMethod]}</p>
+                  <p className="text-sm text-muted">
+                    {r.proteinGroup && `${PROTEIN_EMOJI[r.proteinGroup]} ${PROTEIN_LABELS[r.proteinGroup]} · `}
+                    {COOK_LABELS[r.cookMethod]}
+                  </p>
                 </div>
                 <button className="btn-primary min-h-9 px-3 text-sm">เลือก</button>
               </form>

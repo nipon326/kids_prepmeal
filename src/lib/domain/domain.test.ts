@@ -123,11 +123,26 @@ describe("toddler plan", () => {
     ]);
   });
 
-  it("reports a shortfall when the library is too small", () => {
+  it("fills the mains with other proteins when the week's protein is short", () => {
     const res = generatePlan(input({ proteinGroup: "chicken" }));
+    const mains = itemsFor(res.plan, "elder", "main").map((m) => RECIPES.find((r) => r.id === m.recipeId)!);
+    expect(mains).toHaveLength(4);
+    expect(mains.filter((m) => m.proteinGroup === "chicken")).toHaveLength(2);
+    expect(res.shortfalls.filter((x) => x.role === "main")).toEqual([]);
+  });
+
+  it("reports a shortfall only when every protein together is too small", () => {
+    const fewMains = RECIPES.filter((r) => r.role !== "main" || ["pork_soup", "chicken_soup"].includes(r.id));
+    const res = generatePlan(input({ proteinGroup: "chicken", recipes: fewMains }));
     expect(res.shortfalls).toContainEqual(
-      expect.objectContaining({ childId: "elder", role: "main", proteinGroup: "chicken", needed: 4, found: 2 }),
+      expect.objectContaining({ childId: "elder", role: "main", needed: 4, found: 2 }),
     );
+  });
+
+  it("does not anchor a week on a protein that has no mains", () => {
+    const porkOnly = RECIPES.filter((r) => r.role !== "main" || r.proteinGroup === "pork");
+    const lastWeek: WeeklyPlan = { weekStart: "2026-09-28", proteinGroup: "pork", items: [], newFoods: [] };
+    expect(generatePlan(input({ recipes: porkOnly, history: [lastWeek] })).plan.proteinGroup).toBe("pork");
   });
 
   it("recomputes the same shortfalls from a saved plan", () => {
@@ -188,11 +203,15 @@ describe("baby plan", () => {
 });
 
 describe("alternatives", () => {
-  it("offers only same-protein mains not already in the plan", () => {
+  it("offers every usable main not already in the plan, the week's protein first", () => {
     const inp = input({ proteinGroup: "pork" });
     const { plan } = generatePlan(inp);
-    const first = itemsFor(plan, "elder", "main")[0].recipeId;
-    expect(alternatives(inp, plan, "elder", first).map((x) => x.id)).toEqual(["pork_soup2"]);
+    const inPlan = new Set(itemsFor(plan, "elder", "main").map((m) => m.recipeId));
+    const first = [...inPlan][0];
+    const ids = alternatives(inp, plan, "elder", first, 50).map((x) => x.id);
+    expect(ids[0]).toBe("pork_soup2");
+    expect(ids).toContain("chicken_soup");
+    expect(ids.some((id) => inPlan.has(id))).toBe(false);
   });
 });
 

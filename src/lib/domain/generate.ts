@@ -29,15 +29,13 @@ function safeForEveryone(ing: Ingredient, children: Child[]): boolean {
 
 export function allowedIngredients(
   role: MealRole,
-  proteinGroup: ProteinGroup | undefined,
+  _proteinGroup: ProteinGroup | undefined,
   children: Child[],
   ingredients: Ingredient[],
 ): Ingredient[] {
   return ingredients.filter((ing) => {
     if (!safeForEveryone(ing, children)) return false;
     if (role === "puree") return PUREE_GROUPS.includes(ing.foodGroup) && (ing.minAgeMonths ?? 0) <= PUREE_MIN_AGE;
-    // One main protein per week: keep other proteins out of a main dish.
-    if (role === "main" && ing.proteinGroup && ing.proteinGroup !== proteinGroup) return false;
     return true;
   });
 }

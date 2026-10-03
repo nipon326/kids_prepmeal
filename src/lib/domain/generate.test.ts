@@ -26,10 +26,16 @@ describe("allowedIngredients", () => {
     expect(ids).toContain("pork_minced");
   });
 
-  it("keeps other proteins out of a main dish", () => {
+  it("lets a main use a second protein, but still requires the week's protein", () => {
     const ids = allowedIngredients("main", "pork", [strict], STARTER_INGREDIENTS).map((i) => i.id);
-    expect(ids).not.toContain("chicken_breast");
-    expect(ids).not.toContain("egg");
+    expect(ids).toContain("egg");
+    const all = allowedIngredients("main", "pork", [strict], STARTER_INGREDIENTS);
+    const withEgg = pork(["pork_minced", "egg"]);
+    withEgg.ingredients[1].amountPerPortion = 1;
+    expect(validateGenerated("main", "pork", withEgg, all, [strict]).ok).toBe(true);
+    const eggOnly = pork(["egg", "carrot"]);
+    eggOnly.ingredients[0].amountPerPortion = 1;
+    expect(validateGenerated("main", "pork", eggOnly, all, [strict]).ok).toBe(false);
   });
 
   it("limits purees to unseasoned base foods", () => {
