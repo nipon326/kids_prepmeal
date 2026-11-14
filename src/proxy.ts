@@ -21,12 +21,15 @@ export async function proxy(request: NextRequest) {
   );
 
   const { data } = await supabase.auth.getClaims();
-  const onLogin = request.nextUrl.pathname.startsWith("/login");
+  const { pathname } = request.nextUrl;
+  const isPublic = pathname.startsWith("/login")
+    || pathname.startsWith("/forgot-password")
+    || pathname.startsWith("/reset-password");
 
-  if (!data?.claims && !onLogin) {
+  if (!data?.claims && !isPublic) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (data?.claims && onLogin) {
+  if (data?.claims && pathname.startsWith("/login")) {
     return NextResponse.redirect(new URL("/", request.url));
   }
   return response;
