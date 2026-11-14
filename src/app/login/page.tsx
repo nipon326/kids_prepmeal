@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { authAction, type AuthState } from "./actions";
 
@@ -47,6 +48,12 @@ export default function LoginPage() {
       >
         {mode === "signup" ? "มีบัญชีแล้ว? เข้าสู่ระบบ" : "ยังไม่มีบัญชี? สมัครใช้งาน"}
       </button>
+
+      {mode === "signin" && (
+        <Link href="/forgot-password" className="text-center text-sm text-muted underline">
+          ลืมรหัสผ่าน?
+        </Link>
+      )}
     </main>
   );
 }
